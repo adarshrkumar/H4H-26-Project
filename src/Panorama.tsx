@@ -6,7 +6,8 @@ const Panorama: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -16,10 +17,11 @@ const Panorama: React.FC = () => {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.xr.enabled = true;
-    containerRef.current.appendChild(renderer.domElement);
+    container.appendChild(renderer.domElement);
 
     // Add VR Button
-    document.body.appendChild(VRButton.createButton(renderer));
+    const vrButton = VRButton.createButton(renderer);
+    document.body.appendChild(vrButton);
 
     const geometry = new THREE.SphereGeometry(500, 60, 40);
     // invert the geometry on the x-axis so that all of the faces point inward
@@ -47,12 +49,14 @@ const Panorama: React.FC = () => {
 
     return () => {
       window.removeEventListener('resize', onWindowResize);
+      renderer.setAnimationLoop(null);
       renderer.dispose();
-      if (containerRef.current) {
-        containerRef.current.removeChild(renderer.domElement);
+      
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
       }
-      const vrButton = document.getElementById('VRButton');
-      if (vrButton) {
+      
+      if (document.body.contains(vrButton)) {
         document.body.removeChild(vrButton);
       }
     };
