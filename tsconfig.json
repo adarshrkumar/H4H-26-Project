@@ -6,5 +6,7 @@
   ],
   "compilerOptions": {
     "jsxImportSource": "@webspatial/react-sdk",
+    "strict": true,
+    "forceConsistentCasingInFileNames": true
   }
 }
