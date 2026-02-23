@@ -3,10 +3,12 @@ import react from "@vitejs/plugin-react";
 import vercel from "vite-plugin-vercel";
 import webSpatial from "@webspatial/vite-plugin";
 import { createHtmlPlugin } from "vite-plugin-html";
+import basicSsl from '@vitejs/plugin-basic-ssl';
 
 // https://vite.dev/config/
 export default defineConfig({
     plugins: [
+        basicSsl(),
         vercel(),
         react(),
         webSpatial(),
@@ -18,4 +20,7 @@ export default defineConfig({
             },
         }),
     ],
+    server: {
+        host: true,
+    },
 });
