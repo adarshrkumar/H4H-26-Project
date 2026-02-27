@@ -73,7 +73,7 @@ async function handleFileSelect(event) {
             try {
                  // Decode the audio data from the ArrayBuffer
                 const audioBuffer = await audioContext.decodeAudioData(e.target.result);
-                 console.log('Audio data decoded successfully.');
+                console.log('Audio data decoded successfully.');
 
                 // Create an AudioBufferSourceNode to play the decoded audio
                 bufferSource = audioContext.createBufferSource();
@@ -82,32 +82,32 @@ async function handleFileSelect(event) {
                 // Connect nodes: source -> analyser -> destination (speakers)
                 bufferSource.connect(analyser);
                 analyser.connect(audioContext.destination); // Connect to hear the sound
-                 console.log('Nodes connected: source -> analyser -> destination.');
+                console.log('Nodes connected: source -> analyser -> destination.');
 
                 // Start playback of the audio buffer immediately
                 bufferSource.start(0);
-                 console.log('Playback started.');
+                console.log('Playback started.');
 
                  // Add an event listener for when the audio finishes playing
                  bufferSource.onended = () => {
-                     console.log('Playback finished.');
-                     // Disconnect and nullify the source node when done
-                     // Check if it still exists (might be replaced by a new file selection)
-                     if(bufferSource) {
+                    console.log('Playback finished.');
+                    // Disconnect and nullify the source node when done
+                    // Check if it still exists (might be replaced by a new file selection)
+                    if(bufferSource) {
                         bufferSource.disconnect();
                         bufferSource = null;
                         console.log('Source disconnected on end.');
-                     }
-                     // The drawVisualization loop will detect bufferSource is null
-                     // and stop itself in the next frame.
+                    }
+                    // The drawVisualization loop will detect bufferSource is null
+                    // and stop itself in the next frame.
                  };
 
-                 // Start the visualization loop if it's not already running
-                 // This prevents multiple rAF loops running simultaneously
-                 if (!animationFrameId) {
+                // Start the visualization loop if it's not already running
+                // This prevents multiple rAF loops running simultaneously
+                if (!animationFrameId) {
                     console.log("Starting animation loop.");
                     drawVisualization();
-                 }
+                }
 
 
             } catch (decodeErr) {
@@ -115,11 +115,11 @@ async function handleFileSelect(event) {
                 alert('Could not decode audio data. Please try a different file or format (e.g., MP3, WAV, OGG).');
                 // Clear the file input selection visually in case of decoding error
                 event.target.value = '';
-                 // Ensure animation stops if decoding failed after initial setup
-                 if (animationFrameId) {
-                     cancelAnimationFrame(animationFrameId);
-                     animationFrameId = null;
-                 }
+                // Ensure animation stops if decoding failed after initial setup
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
             }
         };
 
@@ -148,14 +148,14 @@ async function handleFileSelect(event) {
 function drawVisualization() {
      // Stop the loop if there's no active audio source or setup is incomplete
      if (!bufferSource || !analyser || !canvasCtx) {
-         if (animationFrameId) {
-             cancelAnimationFrame(animationFrameId);
-             animationFrameId = null; // Clear the ID
-             console.log("Animation loop stopped.");
-         }
-         // Optionally draw a default state (e.g., white canvas) when idle
-         canvasCtx.fillStyle = '#fff';
-         canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null; // Clear the ID
+            console.log("Animation loop stopped.");
+        }
+        // Optionally draw a default state (e.g., white canvas) when idle
+        canvasCtx.fillStyle = '#fff';
+        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
         return; // Exit the function
     }
 
