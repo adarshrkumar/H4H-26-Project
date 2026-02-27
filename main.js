@@ -2,22 +2,25 @@
 // Shared by File-To-Color, Speaker-To-Color, and Microphone-To-Color.
 // Loaded as a plain <script> tag; functions are exposed on window.*.
 
-// Internal state for onset/tempo detection across frames
-const _onset = {
-    prevEnergy: 0,
-    times: [], // timestamps (ms) of recent detected onsets
+// Internal state across frames (onset detection + flux tracking)
+const _state = {
+    prevEnergy:   0,
+    prevSpectrum: null, // Uint8Array copy of last frame, for flux calculation
+    onsetTimes:   [],   // timestamps (ms) of recent detected onsets
 };
 
-// Extracts normalized audio features from frequency data.
+// Extracts 5 normalized audio features from frequency data.
+//
 //   energy:     0–1  overall volume/amplitude
-//   brightness: 0–1  log-scale spectral centroid (0=bass-heavy, 1=treble-heavy)
+//   brightness: 0–1  log-scale spectral centroid (0=bass, 1=treble)
 //   tempo:      0–1  onset rate (0=no data or ≤40 BPM, 1=≥180 BPM)
+//   flux:       0–1  spectral change from last frame (0=static drone, 1=maximal change)
+//   spread:     0–1  width of frequency content around centroid (0=narrow tone, 1=full band)
 function getAudioFeatures(dataArray) {
     let sum = 0;
     let weightedLogSum = 0;
     let totalAmplitude = 0;
 
-    // Start at 1 to avoid log(0)
     for (let i = 1; i < dataArray.length; i++) {
         sum += dataArray[i];
         weightedLogSum += Math.log2(i) * dataArray[i];
@@ -28,7 +31,31 @@ function getAudioFeatures(dataArray) {
     const logCentroid = totalAmplitude > 0 ? weightedLogSum / totalAmplitude : 0;
     const brightness = logCentroid / Math.log2(dataArray.length);
 
-    // Onset detection: a sudden energy jump marks a new sound event (beat/note/word)
+    // Spectral spread: std-dev of log-frequency around the centroid.
+    // Low = narrow/focused sound (pure tone, bass drone).
+    // High = full-band sound (dense mix, broadband noise).
+    let spreadSum = 0;
+    for (let i = 1; i < dataArray.length; i++) {
+        const diff = Math.log2(i) - logCentroid;
+        spreadSum += diff * diff * dataArray[i];
+    }
+    const spread = Math.min(1, totalAmplitude > 0
+        ? Math.sqrt(spreadSum / totalAmplitude) / Math.log2(dataArray.length)
+        : 0);
+
+    // Spectral flux: sum of positive bin differences vs last frame (half-wave rectified).
+    // Low = steady/sustained sound. High = rapidly changing spectrum (transients, speech).
+    let flux = 0;
+    if (_state.prevSpectrum) {
+        for (let i = 0; i < dataArray.length; i++) {
+            const diff = dataArray[i] - _state.prevSpectrum[i];
+            if (diff > 0) flux += diff;
+        }
+        flux /= dataArray.length * 255;
+    }
+    _state.prevSpectrum = new Uint8Array(dataArray);
+
+    // Onset detection: a sudden energy spike marks a new sound event (beat, note, word).
     const now = performance.now();
     const delta = energy - _onset.prevEnergy;
     if (delta > 0.12 && energy > 0.15) {
@@ -42,7 +69,7 @@ function getAudioFeatures(dataArray) {
         _onset.times.shift();
     }
 
-    // Estimate tempo from average inter-onset interval, normalized to 0–1
+    // Tempo: average inter-onset interval → BPM → normalized 0–1
     // (0 = no data or ≤40 BPM,  1 = ≥180 BPM)
     let tempo = 0;
     if (_onset.times.length >= 2) {
@@ -67,11 +94,11 @@ function getAudioFeatures(dataArray) {
 //  low energy:    melancholic  peaceful      serene
 //  near-silent:   silent
 //
-// Tempo modifier applied on top:
-//  fast (>0.65)         → urgent/intense variant of the base mood
-//  slow (0 < t < 0.25)  → calm/heavy variant of the base mood
-//  no data (tempo=0)    → base mood unchanged
-function getMood(energy, brightness, tempo) {
+// Three modifiers applied in order:
+//   1. Tempo  — fast (>0.65) → urgent variants; slow (0 < t < 0.25) → heavy variants
+//   2. Flux   — very low (<0.02) with energy → sustained/droning variants
+//   3. Spread — very wide (>0.65) with energy → fuller/bigger variants
+function getMood(energy, brightness, tempo, flux, spread) {
     if (energy < 0.12) return 'silent';
 
     let mood;
@@ -115,6 +142,42 @@ function getMood(energy, brightness, tempo) {
             excited:     'giddy',
         };
         mood = slowMap[mood] ?? mood;
+    }
+
+    // Flux modifier: very low flux = sustained/droning tone → pull toward stable moods
+    if (flux < 0.02 && energy > 0.12) {
+        const droneMap = {
+            melancholic:   'somber',
+            peaceful:      'meditative',
+            serene:        'meditative',
+            tense:         'brooding',
+            focused:       'contemplative',
+            uplifting:     'hopeful',
+            angry:         'smoldering',
+            powerful:      'heavy',
+            excited:       'giddy',
+            restless:      'brooding',
+            frantic:       'tense',
+            driven:        'focused',
+            euphoric:      'serene',
+            furious:       'angry',
+            intense:       'powerful',
+        };
+        mood = droneMap[mood] ?? mood;
+    }
+
+    // Spread modifier: very wide spectrum + sufficient energy → bigger/fuller quality
+    if (spread > 0.65 && energy > 0.45) {
+        const wideMap = {
+            focused:       'powerful',
+            tense:         'frantic',
+            uplifting:     'excited',
+            peaceful:      'uplifting',
+            melancholic:   'tense',
+            contemplative: 'focused',
+            tranquil:      'peaceful',
+        };
+        mood = wideMap[mood] ?? mood;
     }
 
     return mood;
