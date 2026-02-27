@@ -2,6 +2,7 @@
 let audioContext = null;
 let analyser = null;
 let dataArray = null;
+let timeDomainArray = null;
 let mediaStream = null;
 let sourceNode = null;
 let silentGain = null; // Zero-gain node that keeps AudioContext alive without feedback
@@ -42,6 +43,7 @@ async function startCapture() {
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 2048;
         dataArray = new Uint8Array(analyser.frequencyBinCount);
+        timeDomainArray = new Uint8Array(analyser.fftSize);
 
         // Connect mic stream to analyser, then through a zero-gain node to
         // destination. The silent output prevents the browser from auto-suspending
@@ -121,8 +123,9 @@ function drawVisualization() {
     animationFrameId = requestAnimationFrame(drawVisualization);
 
     analyser.getByteFrequencyData(dataArray);
+    analyser.getByteTimeDomainData(timeDomainArray);
 
-    const { mood, color } = audioToColor(dataArray);
+    const { mood, color } = audioToColor(dataArray, timeDomainArray);
     moodDisplay.textContent = mood;
 
     canvasCtx.fillStyle = color;

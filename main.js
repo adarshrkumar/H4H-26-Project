@@ -9,14 +9,20 @@ const _state = {
     onsetTimes:   [],   // timestamps (ms) of recent detected onsets
 };
 
-// Extracts 5 normalized audio features from frequency data.
+// Extracts 8 normalized audio features from frequency and time-domain data.
 //
 //   energy:     0–1  overall volume/amplitude
 //   brightness: 0–1  log-scale spectral centroid (0=bass, 1=treble)
 //   tempo:      0–1  onset rate (0=no data or ≤40 BPM, 1=≥180 BPM)
 //   flux:       0–1  spectral change from last frame (0=static drone, 1=maximal change)
 //   spread:     0–1  width of frequency content around centroid (0=narrow tone, 1=full band)
-function getAudioFeatures(dataArray) {
+//   flatness:   0–1  tonality ratio (0=pure tone/instrument, 1=white noise/full-band chaos)
+//   bassRatio:  0–1  fraction of total energy in lowest 10% of bins (0=no bass, high=bass-heavy)
+//   zcr:        0–1  zero crossing rate from waveform (0=smooth/tonal, 1=noisy/percussive)
+//
+// timeDomainArray is optional; flatness and bassRatio work without it,
+// but zcr will be 0 if it is omitted.
+function getAudioFeatures(dataArray, timeDomainArray) {
     let sum = 0;
     let weightedLogSum = 0;
     let totalAmplitude = 0;
@@ -43,7 +49,9 @@ function getAudioFeatures(dataArray) {
         ? Math.sqrt(spreadSum / totalAmplitude) / Math.log2(dataArray.length)
         : 0);
 
-    // Spectral flux: sum of positive bin differences vs last frame (half-wave rectified), normalized relative to the current frame's total amplitude so quiet and loud audio are treated proportionally. Low = steady/sustained. High = rapidly changing.
+    // Spectral flux: sum of positive bin differences vs last frame (half-wave rectified),
+    // normalized relative to the current frame's total amplitude so quiet and loud audio
+    // are treated proportionally. Low = steady/sustained. High = rapidly changing.
     let flux = 0;
     if (_state.prevSpectrum && totalAmplitude > 0) {
         let rawFlux = 0;
@@ -82,10 +90,57 @@ function getAudioFeatures(dataArray) {
         tempo = Math.min(1, Math.max(0, (bpm - 40) / 140));
     }
 
-    return { energy, brightness, tempo, flux, spread };
+    // Spectral flatness: geometric mean / arithmetic mean of bin amplitudes.
+    // Values near 0 = tonal (instruments, sustained notes).
+    // Values near 1 = noise-like (cymbals, dense distortion, white noise).
+    let flatness = 0;
+    if (totalAmplitude > 0) {
+        let logSum = 0;
+        let nonZeroCount = 0;
+        for (let i = 1; i < dataArray.length; i++) {
+            if (dataArray[i] > 0) {
+                logSum += Math.log(dataArray[i]);
+                nonZeroCount++;
+            }
+        }
+        if (nonZeroCount > 0) {
+            const geometricMean = Math.exp(logSum / nonZeroCount);
+            const arithmeticMean = totalAmplitude / dataArray.length;
+            flatness = Math.min(1, arithmeticMean > 0 ? geometricMean / arithmeticMean : 0);
+        }
+    }
+
+    // Bass ratio: proportion of total energy concentrated in the lowest 10% of bins.
+    // Low = treble-heavy or balanced. High = bass-dominated (sub-bass, kick, rumble).
+    const bassEnd = Math.max(1, Math.floor(dataArray.length * 0.10));
+    let bassSum = 0;
+    for (let i = 0; i < bassEnd; i++) {
+        bassSum += dataArray[i];
+    }
+    const bassRatio = totalAmplitude > 0 ? Math.min(1, bassSum / totalAmplitude) : 0;
+
+    // Zero crossing rate: how often the waveform crosses the zero line per sample.
+    // Low ZCR = smooth, tonal (sine waves, bass notes).
+    // High ZCR = noisy, percussive (snare hits, hi-hats, distortion).
+    // Requires timeDomainArray (values 0–255 with 128 as silence centre).
+    let zcr = 0;
+    if (timeDomainArray && timeDomainArray.length > 1) {
+        let crossings = 0;
+        for (let i = 1; i < timeDomainArray.length; i++) {
+            const prev = timeDomainArray[i - 1] - 128;
+            const curr = timeDomainArray[i] - 128;
+            if ((prev >= 0 && curr < 0) || (prev < 0 && curr >= 0)) {
+                crossings++;
+            }
+        }
+        // Normalise: maximum possible crossings = length - 1 (fully alternating signal)
+        zcr = crossings / (timeDomainArray.length - 1);
+    }
+
+    return { energy, brightness, tempo, flux, spread, flatness, bassRatio, zcr };
 }
 
-// Maps all 5 features to a mood/emotion label.
+// Maps all 8 features to a mood/emotion label.
 //
 // Base grid (energy × brightness):
 //               bass-heavy    mid-range     bright/treble
@@ -94,40 +149,78 @@ function getAudioFeatures(dataArray) {
 //  low energy:    melancholic  peaceful      serene
 //  near-silent:   silent
 //
-// Four modifiers applied in order:
-//   1. Tempo  — fast (>0.65) → urgent variants; slow (0 < t < 0.25) → heavy variants
-//   2. Flux   — very low (<0.05) → sustained/droning variants
-//   3. Spread — wide (>0.55) with energy → fuller/bigger variants
-//   4. Volume — very loud (>0.80) → escalate intensity; very quiet (<0.22) → dampen
-function getMood(energy, brightness, tempo, flux, spread) {
-    if (energy < 0.05) 
+// Eight modifiers applied in order (each can override the previous result):
+//   1. Volume   — very loud (>0.80) → escalate intensity; very quiet (<0.22) → dampen
+//   2. Tempo    — fast (>0.65) → urgent variants; slow (0 < t < 0.25) → heavy variants
+//   3. Flux     — very low (<0.05) → sustained/droning variants
+//   4. Spread   — wide (>0.55) with energy → fuller/bigger variants
+//   5. Bass     — high ratio (>0.30) with energy → heavier/darker variants
+//   6. Noise    — high flatness (>0.70) + high ZCR (>0.15) → more chaotic variants
+function getMood(energy, brightness, tempo, flux, spread, flatness, bassRatio, zcr) {
+    if (energy < 0.05)
         return 'silent';
 
     // Base mood from energy × brightness
     let mood;
     if (energy < 0.35) {
-        if (brightness < 0.38) 
+        if (brightness < 0.38)
             mood = 'melancholic';
-        else if (brightness < 0.65) 
+        else if (brightness < 0.65)
             mood = 'peaceful';
-        else 
+        else
             mood = 'serene';
     }
     else if (energy < 0.60) {
-        if (brightness < 0.38) 
+        if (brightness < 0.38)
             mood = 'tense';
-        else if (brightness < 0.65) 
+        else if (brightness < 0.65)
             mood = 'focused';
-        else 
+        else
             mood = 'uplifting';
     }
     else {
-        if (brightness < 0.38) 
+        if (brightness < 0.38)
             mood = 'angry';
-        else if (brightness < 0.65) 
+        else if (brightness < 0.65)
             mood = 'powerful';
-        else 
+        else
             mood = 'excited';
+    }
+
+    // Volume modifier: very loud → escalate to peak intensity; very quiet → dampen
+    if (energy > 0.80) {
+        const loudMap = {
+            peaceful:      'uplifting',
+            serene:        'excited',
+            focused:       'powerful',
+            uplifting:     'excited',
+            melancholic:   'tense',
+            tranquil:      'peaceful',
+            meditative:    'serene',
+            hopeful:       'uplifting',
+            somber:        'melancholic',
+            contemplative: 'focused',
+            brooding:      'tense',
+            heavy:         'powerful',
+            giddy:         'excited',
+        };
+        mood = loudMap[mood] ?? mood;
+    }
+    else if (energy < 0.22) {
+        const quietMap = {
+            angry:    'tense',
+            powerful: 'focused',
+            excited:  'uplifting',
+            furious:  'angry',
+            intense:  'powerful',
+            frantic:  'tense',
+            driven:   'focused',
+            restless: 'melancholic',
+            joyful:   'peaceful',
+            playful:  'peaceful',
+            euphoric: 'serene',
+        };
+        mood = quietMap[mood] ?? mood;
     }
 
     // Tempo modifier
@@ -197,40 +290,34 @@ function getMood(energy, brightness, tempo, flux, spread) {
         mood = wideMap[mood] ?? mood;
     }
 
-    // Volume modifier: very loud → escalate to peak intensity; very quiet → dampen
-    if (energy > 0.80) {
-        const loudMap = {
-            peaceful:      'uplifting',
-            serene:        'excited',
-            focused:       'powerful',
-            uplifting:     'excited',
-            melancholic:   'tense',
-            tranquil:      'peaceful',
-            meditative:    'serene',
-            hopeful:       'uplifting',
-            somber:        'melancholic',
-            contemplative: 'focused',
-            brooding:      'tense',
-            heavy:         'powerful',
-            giddy:         'excited',
+    // Bass modifier: heavily bass-dominated audio → pull toward heavier, darker moods
+    if (bassRatio > 0.30 && energy > 0.25) {
+        const bassMap = {
+            uplifting:   'focused',
+            excited:     'powerful',
+            joyful:      'driven',
+            playful:     'restless',
+            hopeful:     'contemplative',
+            giddy:       'restless',
+            euphoric:    'intense',
+            serene:      'peaceful',
+            tranquil:    'somber',
         };
-        mood = loudMap[mood] ?? mood;
+        mood = bassMap[mood] ?? mood;
     }
-    else if (energy < 0.22) {
-        const quietMap = {
-            angry:    'tense',
-            powerful: 'focused',
-            excited:  'uplifting',
-            furious:  'angry',
-            intense:  'powerful',
-            frantic:  'tense',
-            driven:   'focused',
-            restless: 'melancholic',
-            joyful:   'peaceful',
-            playful:  'peaceful',
-            euphoric: 'serene',
+
+    // Noise modifier: high flatness + high ZCR = percussive/chaotic audio → more active moods
+    if (flatness > 0.70 && zcr > 0.15 && energy > 0.15) {
+        const noisyMap = {
+            peaceful:      'restless',
+            serene:        'uplifting',
+            tranquil:      'peaceful',
+            meditative:    'contemplative',
+            somber:        'brooding',
+            hopeful:       'focused',
+            contemplative: 'tense',
         };
-        mood = quietMap[mood] ?? mood;
+        mood = noisyMap[mood] ?? mood;
     }
 
     return mood;
@@ -280,9 +367,11 @@ function moodToColor(mood, energy) {
 
 // Convenience: runs the full audio → mood → color pipeline in one call.
 // Returns { mood, color } where color is an HSL string.
-function audioToColor(dataArray) {
-    const { energy, brightness, tempo, flux, spread } = getAudioFeatures(dataArray);
-    const mood = getMood(energy, brightness, tempo, flux, spread);
+// timeDomainArray is optional — pass it to enable ZCR (waveform-based noise detection).
+function audioToColor(dataArray, timeDomainArray) {
+    const { energy, brightness, tempo, flux, spread, flatness, bassRatio, zcr } =
+        getAudioFeatures(dataArray, timeDomainArray);
+    const mood = getMood(energy, brightness, tempo, flux, spread, flatness, bassRatio, zcr);
     const color = moodToColor(mood, energy);
     return { mood, color };
 }

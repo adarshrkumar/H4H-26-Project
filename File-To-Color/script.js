@@ -3,6 +3,7 @@ let audioContext = null;
 let analyser = null;
 let dataArray = null;
 let bufferSource = null; // Source node for the audio buffer
+let timeDomainArray = null;
 const canvas = document.getElementById('colorCanvas');
 const canvasCtx = canvas.getContext('2d');
 const fileInput = document.getElementById('audioFile');
@@ -64,6 +65,7 @@ async function handleFileSelect(event) {
             analyser.fftSize = 2048; // Defines the window size for FFT
             // The number of data points is half the FFT size
             dataArray = new Uint8Array(analyser.frequencyBinCount);
+            timeDomainArray = new Uint8Array(analyser.fftSize);
             console.log('Analyser created.');
         }
 
@@ -161,8 +163,9 @@ function drawVisualization() {
 
     // Get the frequency data into the dataArray
     analyser.getByteFrequencyData(dataArray);
+    analyser.getByteTimeDomainData(timeDomainArray);
 
-    const { mood, color } = audioToColor(dataArray);
+    const { mood, color } = audioToColor(dataArray, timeDomainArray);
     moodDisplay.textContent = mood;
 
     canvasCtx.fillStyle = color;

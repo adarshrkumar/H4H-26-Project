@@ -2,6 +2,7 @@
 let audioContext = null;
 let analyser = null;
 let dataArray = null;
+let timeDomainArray = null;
 let mediaStream = null;
 let sourceNode = null;
 const canvas = document.getElementById('colorCanvas');
@@ -56,6 +57,7 @@ async function startCapture() {
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 2048;
         dataArray = new Uint8Array(analyser.frequencyBinCount);
+        timeDomainArray = new Uint8Array(analyser.fftSize);
 
         // Connect the captured stream to the analyser.
         // Do NOT connect analyser -> destination: that would feed the audio back through the speakers and cause an echo/feedback loop.
@@ -120,8 +122,9 @@ function drawVisualization() {
     animationFrameId = requestAnimationFrame(drawVisualization);
 
     analyser.getByteFrequencyData(dataArray);
+    analyser.getByteTimeDomainData(timeDomainArray);
 
-    const { mood, color } = audioToColor(dataArray);
+    const { mood, color } = audioToColor(dataArray, timeDomainArray);
     moodDisplay.textContent = mood;
 
     canvasCtx.fillStyle = color;
