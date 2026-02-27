@@ -165,31 +165,27 @@ function drawVisualization() {
     analyser.getByteFrequencyData(dataArray);
 
     // --- Color Mapping Logic ---
-    // This logic maps audio frequency data to HSL color properties.
-    // It finds the dominant frequency and calculates the average amplitude.
+    // Uses a log-scale spectral centroid for hue. Since human hearing is
+    // logarithmic, this spreads all audio (including bass-heavy music) evenly
+    // across the full hue range instead of clustering near red.
 
     let sum = 0;
-    let maxAmplitude = 0;
-    let maxAmplitudeIndex = 0;
+    let weightedLogSum = 0;
+    let totalAmplitude = 0;
 
-    // Iterate through the frequency data array
-    for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i]; // Sum for average amplitude
-        // Find the bin with the maximum amplitude (dominant frequency)
-        if (dataArray[i] > maxAmplitude) {
-            maxAmplitude = dataArray[i];
-            maxAmplitudeIndex = i;
-        }
+    // Iterate through the frequency data array (start at 1 to avoid log(0))
+    for (let i = 1; i < dataArray.length; i++) {
+        sum += dataArray[i];
+        weightedLogSum += Math.log2(i) * dataArray[i];
+        totalAmplitude += dataArray[i];
     }
 
     // Calculate the average amplitude
     const averageAmplitude = sum / dataArray.length; // Value from 0-255
 
-    // Map the index of the dominant frequency bin to Hue (0 to 360 degrees)
-    // Lower frequencies (smaller indices) -> lower hues (red, orange, yellow)
-    // Higher frequencies (larger indices) -> higher hues (green, blue, violet)
-    // dataArray.length is equal to analyser.frequencyBinCount
-    const hue = (maxAmplitudeIndex / dataArray.length) * 360;
+    // Spectral centroid on a log frequency scale -> Hue (0 to 360 degrees)
+    const logCentroid = totalAmplitude > 0 ? weightedLogSum / totalAmplitude : 0;
+    const hue = (logCentroid / Math.log2(dataArray.length)) * 360;
 
     // Map the average amplitude (volume) to Lightness (e.g., 10% to 90%)
     // A base lightness (10%) ensures visibility even when quiet.
