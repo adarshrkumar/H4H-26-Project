@@ -43,15 +43,15 @@ function getAudioFeatures(dataArray) {
         ? Math.sqrt(spreadSum / totalAmplitude) / Math.log2(dataArray.length)
         : 0);
 
-    // Spectral flux: sum of positive bin differences vs last frame (half-wave rectified).
-    // Low = steady/sustained sound. High = rapidly changing spectrum (transients, speech).
+    // Spectral flux: sum of positive bin differences vs last frame (half-wave rectified), normalized relative to the current frame's total amplitude so quiet and loud audio are treated proportionally. Low = steady/sustained. High = rapidly changing.
     let flux = 0;
-    if (_state.prevSpectrum) {
+    if (_state.prevSpectrum && totalAmplitude > 0) {
+        let rawFlux = 0;
         for (let i = 0; i < dataArray.length; i++) {
             const diff = dataArray[i] - _state.prevSpectrum[i];
-            if (diff > 0) flux += diff;
+            if (diff > 0) rawFlux += diff;
         }
-        flux /= dataArray.length * 255;
+        flux = rawFlux / totalAmplitude; // relative flux: 0 = no change, >0.1 = dynamic
     }
     _state.prevSpectrum = new Uint8Array(dataArray);
 
@@ -147,7 +147,8 @@ function getMood(energy, brightness, tempo, flux, spread) {
     }
 
     // Flux modifier: very low flux = sustained/droning tone → pull toward stable moods
-    if (flux < 0.02 && energy > 0.12) {
+    // Threshold ~0.05 on the relative scale (0 = no change, >0.1 = dynamic audio)
+    if (flux < 0.05 && energy > 0.12) {
         const droneMap = {
             melancholic:   'somber',
             peaceful:      'meditative',
@@ -168,8 +169,8 @@ function getMood(energy, brightness, tempo, flux, spread) {
         mood = droneMap[mood] ?? mood;
     }
 
-    // Spread modifier: very wide spectrum + sufficient energy → bigger/fuller quality
-    if (spread > 0.65 && energy > 0.45) {
+    // Spread modifier: wide spectrum + sufficient energy → bigger/fuller quality
+    if (spread > 0.55 && energy > 0.40) {
         const wideMap = {
             focused:       'powerful',
             tense:         'frantic',
