@@ -94,27 +94,37 @@ function getAudioFeatures(dataArray) {
 //  low energy:    melancholic  peaceful      serene
 //  near-silent:   silent
 //
-// Three modifiers applied in order:
+// Four modifiers applied in order:
 //   1. Tempo  — fast (>0.65) → urgent variants; slow (0 < t < 0.25) → heavy variants
-//   2. Flux   — very low (<0.02) with energy → sustained/droning variants
-//   3. Spread — very wide (>0.65) with energy → fuller/bigger variants
+//   2. Flux   — very low (<0.05) → sustained/droning variants
+//   3. Spread — wide (>0.55) with energy → fuller/bigger variants
+//   4. Volume — very loud (>0.80) → escalate intensity; very quiet (<0.22) → dampen
 function getMood(energy, brightness, tempo, flux, spread) {
     if (energy < 0.12) return 'silent';
 
     // Base mood from energy × brightness
     let mood;
     if (energy < 0.35) {
-        if (brightness < 0.38) mood = 'melancholic';
-        else if (brightness < 0.65) mood = 'peaceful';
-        else mood = 'serene';
+        if (brightness < 0.38) 
+            mood = 'melancholic';
+        else if (brightness < 0.65) 
+            mood = 'peaceful';
+        else 
+            mood = 'serene';
     } else if (energy < 0.60) {
-        if (brightness < 0.38) mood = 'tense';
-        else if (brightness < 0.65) mood = 'focused';
-        else mood = 'uplifting';
+        if (brightness < 0.38) 
+            mood = 'tense';
+        else if (brightness < 0.65) 
+            mood = 'focused';
+        else 
+            mood = 'uplifting';
     } else {
-        if (brightness < 0.38) mood = 'angry';
-        else if (brightness < 0.65) mood = 'powerful';
-        else mood = 'excited';
+        if (brightness < 0.38) 
+            mood = 'angry';
+        else if (brightness < 0.65) 
+            mood = 'powerful';
+        else 
+            mood = 'excited';
     }
 
     // Tempo modifier
@@ -181,6 +191,41 @@ function getMood(energy, brightness, tempo, flux, spread) {
             tranquil:      'peaceful',
         };
         mood = wideMap[mood] ?? mood;
+    }
+
+    // Volume modifier: very loud → escalate to peak intensity; very quiet → dampen
+    if (energy > 0.80) {
+        const loudMap = {
+            peaceful:      'uplifting',
+            serene:        'excited',
+            focused:       'powerful',
+            uplifting:     'excited',
+            melancholic:   'tense',
+            tranquil:      'peaceful',
+            meditative:    'serene',
+            hopeful:       'uplifting',
+            somber:        'melancholic',
+            contemplative: 'focused',
+            brooding:      'tense',
+            heavy:         'powerful',
+            giddy:         'excited',
+        };
+        mood = loudMap[mood] ?? mood;
+    } else if (energy < 0.22) {
+        const quietMap = {
+            angry:    'tense',
+            powerful: 'focused',
+            excited:  'uplifting',
+            furious:  'angry',
+            intense:  'powerful',
+            frantic:  'tense',
+            driven:   'focused',
+            restless: 'melancholic',
+            joyful:   'peaceful',
+            playful:  'peaceful',
+            euphoric: 'serene',
+        };
+        mood = quietMap[mood] ?? mood;
     }
 
     return mood;
