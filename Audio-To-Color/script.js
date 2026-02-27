@@ -47,11 +47,11 @@ async function handleFileSelect(event) {
         // Ensure audio context is created or resumed.
         // The context must be created in response to a user gesture for security reasons.
         if (!audioContext || audioContext.state === 'closed') {
-             audioContext = new (window.AudioContext || window.webkitAudioContext)();
-             console.log('Audio context created.');
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            console.log('Audio context created.');
         }
 
-         if (audioContext.state === 'suspended') {
+        if (audioContext.state === 'suspended') {
             // Attempt to resume context if it was suspended (e.g., browser tab inactive)
             await audioContext.resume();
             console.log('Audio context resumed.');
@@ -63,7 +63,7 @@ async function handleFileSelect(event) {
             analyser.fftSize = 2048; // Defines the window size for FFT
             // The number of data points is half the FFT size
             dataArray = new Uint8Array(analyser.frequencyBinCount);
-             console.log('Analyser created.');
+            console.log('Analyser created.');
         }
 
         // Use FileReader to read the file content as an ArrayBuffer
@@ -71,7 +71,7 @@ async function handleFileSelect(event) {
 
         reader.onload = async (e) => {
             try {
-                 // Decode the audio data from the ArrayBuffer
+                // Decode the audio data from the ArrayBuffer
                 const audioBuffer = await audioContext.decodeAudioData(e.target.result);
                 console.log('Audio data decoded successfully.');
 
@@ -88,19 +88,19 @@ async function handleFileSelect(event) {
                 bufferSource.start(0);
                 console.log('Playback started.');
 
-                 // Add an event listener for when the audio finishes playing
-                 bufferSource.onended = () => {
+                // Add an event listener for when the audio finishes playing
+                bufferSource.onended = () => {
                     console.log('Playback finished.');
                     // Disconnect and nullify the source node when done
                     // Check if it still exists (might be replaced by a new file selection)
-                    if(bufferSource) {
+                    if (bufferSource) {
                         bufferSource.disconnect();
                         bufferSource = null;
                         console.log('Source disconnected on end.');
                     }
                     // The drawVisualization loop will detect bufferSource is null
                     // and stop itself in the next frame.
-                 };
+                };
 
                 // Start the visualization loop if it's not already running
                 // This prevents multiple rAF loops running simultaneously
@@ -108,7 +108,6 @@ async function handleFileSelect(event) {
                     console.log("Starting animation loop.");
                     drawVisualization();
                 }
-
 
             } catch (decodeErr) {
                 console.error('Error decoding audio data:', decodeErr);
@@ -146,8 +145,8 @@ async function handleFileSelect(event) {
  * The main visualization loop. Gets frequency data and updates the canvas color.
  */
 function drawVisualization() {
-     // Stop the loop if there's no active audio source or setup is incomplete
-     if (!bufferSource || !analyser || !canvasCtx) {
+    // Stop the loop if there's no active audio source or setup is incomplete
+    if (!bufferSource || !analyser || !canvasCtx) {
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
             animationFrameId = null; // Clear the ID
