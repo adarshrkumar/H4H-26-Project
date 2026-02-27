@@ -100,7 +100,8 @@ function getAudioFeatures(dataArray) {
 //   3. Spread — wide (>0.55) with energy → fuller/bigger variants
 //   4. Volume — very loud (>0.80) → escalate intensity; very quiet (<0.22) → dampen
 function getMood(energy, brightness, tempo, flux, spread) {
-    if (energy < 0.12) return 'silent';
+    if (energy < 0.05) 
+        return 'silent';
 
     // Base mood from energy × brightness
     let mood;
@@ -111,14 +112,16 @@ function getMood(energy, brightness, tempo, flux, spread) {
             mood = 'peaceful';
         else 
             mood = 'serene';
-    } else if (energy < 0.60) {
+    }
+    else if (energy < 0.60) {
         if (brightness < 0.38) 
             mood = 'tense';
         else if (brightness < 0.65) 
             mood = 'focused';
         else 
             mood = 'uplifting';
-    } else {
+    }
+    else {
         if (brightness < 0.38) 
             mood = 'angry';
         else if (brightness < 0.65) 
@@ -141,7 +144,8 @@ function getMood(energy, brightness, tempo, flux, spread) {
             excited:     'euphoric',
         };
         mood = fastMap[mood] ?? mood;
-    } else if (tempo > 0 && tempo < 0.25) {
+    }
+    else if (tempo > 0 && tempo < 0.25) {
         const slowMap = {
             melancholic: 'somber',
             peaceful:    'tranquil',
@@ -211,7 +215,8 @@ function getMood(energy, brightness, tempo, flux, spread) {
             giddy:         'excited',
         };
         mood = loudMap[mood] ?? mood;
-    } else if (energy < 0.22) {
+    }
+    else if (energy < 0.22) {
         const quietMap = {
             angry:    'tense',
             powerful: 'focused',
