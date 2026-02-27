@@ -8,6 +8,7 @@ const canvas = document.getElementById('colorCanvas');
 const canvasCtx = canvas.getContext('2d');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
+const moodDisplay = document.getElementById('mood');
 
 // Variable to track the animation frame ID for stopping the loop
 let animationFrameId = null;
@@ -23,13 +24,10 @@ canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 startBtn.addEventListener('click', startCapture);
 stopBtn.addEventListener('click', stopCapture);
 
-/**
- * Starts capturing system/tab audio via getDisplayMedia and begins visualization.
- */
+// Starts capturing system/tab audio via getDisplayMedia and begins visualization.
 async function startCapture() {
     try {
-        // Request display capture — video:true is required by most browsers to
-        // surface the "Share audio" checkbox in the picker dialog.
+        // Request display capture — video:true is required by most browsers to surface the "Share audio" checkbox in the picker dialog.
         mediaStream = await navigator.mediaDevices.getDisplayMedia({
             audio: true,
             video: true,
@@ -60,8 +58,7 @@ async function startCapture() {
         dataArray = new Uint8Array(analyser.frequencyBinCount);
 
         // Connect the captured stream to the analyser.
-        // Do NOT connect analyser -> destination: that would feed the audio back
-        // through the speakers and cause an echo/feedback loop.
+        // Do NOT connect analyser -> destination: that would feed the audio back through the speakers and cause an echo/feedback loop.
         sourceNode = audioContext.createMediaStreamSource(mediaStream);
         sourceNode.connect(analyser);
 
@@ -84,9 +81,7 @@ async function startCapture() {
     }
 }
 
-/**
- * Stops the capture, disconnects nodes, and resets UI.
- */
+// Stops the capture, disconnects nodes, and resets UI.
 function stopCapture() {
     if (mediaStream) {
         mediaStream.getTracks().forEach(track => track.stop());
@@ -103,13 +98,12 @@ function stopCapture() {
     analyser = null;
     startBtn.disabled = false;
     stopBtn.disabled = true;
+    moodDisplay.textContent = '';
     canvasCtx.fillStyle = '#fff';
     canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-/**
- * The main visualization loop. Gets frequency data and updates the canvas color.
- */
+// The main visualization loop. Gets frequency data and updates the canvas color.
 function drawVisualization() {
     // Stop the loop if capture has ended
     if (!sourceNode || !analyser || !canvasCtx) {
@@ -117,6 +111,7 @@ function drawVisualization() {
             cancelAnimationFrame(animationFrameId);
             animationFrameId = null;
         }
+        moodDisplay.textContent = '';
         canvasCtx.fillStyle = '#fff';
         canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
         return;
@@ -126,33 +121,9 @@ function drawVisualization() {
 
     analyser.getByteFrequencyData(dataArray);
 
-    // --- Color Mapping Logic ---
-    // Uses a log-scale spectral centroid for hue. Since human hearing is
-    // logarithmic, this spreads all audio (including bass-heavy content) evenly
-    // across the full hue range instead of clustering near red.
+    const { mood, color } = audioToColor(dataArray);
+    moodDisplay.textContent = mood;
 
-    let sum = 0;
-    let weightedLogSum = 0;
-    let totalAmplitude = 0;
-
-    // Start at 1 to avoid log(0)
-    for (let i = 1; i < dataArray.length; i++) {
-        sum += dataArray[i];
-        weightedLogSum += Math.log2(i) * dataArray[i];
-        totalAmplitude += dataArray[i];
-    }
-
-    const averageAmplitude = sum / dataArray.length; // Value from 0-255
-
-    // Spectral centroid on a log frequency scale -> Hue (0 to 360 degrees)
-    const logCentroid = totalAmplitude > 0 ? weightedLogSum / totalAmplitude : 0;
-    const hue = (logCentroid / Math.log2(dataArray.length)) * 360;
-
-    // Map average amplitude (volume) to Lightness (10% to 90%)
-    const lightness = 10 + (averageAmplitude / 255) * 80;
-
-    const saturation = 70; // Percentage
-
-    canvasCtx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    canvasCtx.fillStyle = color;
     canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 }

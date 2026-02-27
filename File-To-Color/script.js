@@ -5,7 +5,8 @@ let dataArray = null;
 let bufferSource = null; // Source node for the audio buffer
 const canvas = document.getElementById('colorCanvas');
 const canvasCtx = canvas.getContext('2d');
-const fileInput = document.getElementById('audioFile'); // Get the file input element
+const fileInput = document.getElementById('audioFile');
+const moodDisplay = document.getElementById('mood');
 
 // Variable to track the animation frame ID for stopping the loop
 let animationFrameId = null;
@@ -98,8 +99,7 @@ async function handleFileSelect(event) {
                         bufferSource = null;
                         console.log('Source disconnected on end.');
                     }
-                    // The drawVisualization loop will detect bufferSource is null
-                    // and stop itself in the next frame.
+                    // The drawVisualization loop will detect bufferSource is null and stop itself in the next frame.
                 };
 
                 // Start the visualization loop if it's not already running
@@ -141,9 +141,7 @@ async function handleFileSelect(event) {
     }
 }
 
-/**
- * The main visualization loop. Gets frequency data and updates the canvas color.
- */
+// The main visualization loop. Gets frequency data and updates the canvas color.
 function drawVisualization() {
     // Stop the loop if there's no active audio source or setup is incomplete
     if (!bufferSource || !analyser || !canvasCtx) {
@@ -152,7 +150,7 @@ function drawVisualization() {
             animationFrameId = null; // Clear the ID
             console.log("Animation loop stopped.");
         }
-        // Optionally draw a default state (e.g., white canvas) when idle
+        moodDisplay.textContent = '';
         canvasCtx.fillStyle = '#fff';
         canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
         return; // Exit the function
@@ -164,41 +162,9 @@ function drawVisualization() {
     // Get the frequency data into the dataArray
     analyser.getByteFrequencyData(dataArray);
 
-    // --- Color Mapping Logic ---
-    // Uses a log-scale spectral centroid for hue. Since human hearing is
-    // logarithmic, this spreads all audio (including bass-heavy music) evenly
-    // across the full hue range instead of clustering near red.
+    const { mood, color } = audioToColor(dataArray);
+    moodDisplay.textContent = mood;
 
-    let sum = 0;
-    let weightedLogSum = 0;
-    let totalAmplitude = 0;
-
-    // Iterate through the frequency data array (start at 1 to avoid log(0))
-    for (let i = 1; i < dataArray.length; i++) {
-        sum += dataArray[i];
-        weightedLogSum += Math.log2(i) * dataArray[i];
-        totalAmplitude += dataArray[i];
-    }
-
-    // Calculate the average amplitude
-    const averageAmplitude = sum / dataArray.length; // Value from 0-255
-
-    // Spectral centroid on a log frequency scale -> Hue (0 to 360 degrees)
-    const logCentroid = totalAmplitude > 0 ? weightedLogSum / totalAmplitude : 0;
-    const hue = (logCentroid / Math.log2(dataArray.length)) * 360;
-
-    // Map the average amplitude (volume) to Lightness (e.g., 10% to 90%)
-    // A base lightness (10%) ensures visibility even when quiet.
-    // Max lightness (90%) prevents over-saturation/whiteout at max volume.
-    const lightness = 10 + (averageAmplitude / 255) * 80; // Map 0-255 to 10-90
-
-    // Keep saturation relatively high for vibrant colors
-    const saturation = 70; // Percentage
-
-    // Create the HSL color string
-    const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-
-    // Fill the entire canvas with the calculated color
     canvasCtx.fillStyle = color;
     canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 }
