@@ -4,6 +4,7 @@ let analyser = null;
 let dataArray = null;
 let mediaStream = null;
 let sourceNode = null;
+let silentGain = null; // Zero-gain node that keeps AudioContext alive without feedback
 const canvas = document.getElementById('colorCanvas');
 const canvasCtx = canvas.getContext('2d');
 const startBtn = document.getElementById('startBtn');
@@ -42,10 +43,20 @@ async function startCapture() {
         analyser.fftSize = 2048;
         dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-        // Connect mic stream to analyser.
-        // Do NOT connect analyser -> destination: that would feed back through speakers.
+        // Connect mic stream to analyser, then through a zero-gain node to
+        // destination. The silent output prevents the browser from auto-suspending
+        // the AudioContext, which would stop the visualization after a few seconds.
         sourceNode = audioContext.createMediaStreamSource(mediaStream);
+        silentGain = audioContext.createGain();
+        silentGain.gain.value = 0;
         sourceNode.connect(analyser);
+        analyser.connect(silentGain);
+        silentGain.connect(audioContext.destination);
+
+        // Resume immediately if the browser suspends the context
+        audioContext.onstatechange = () => {
+            if (audioContext && audioContext.state === 'suspended') audioContext.resume();
+        };
 
         // Handle the user revoking mic access externally
         mediaStream.getAudioTracks()[0].onended = stopCapture;
@@ -74,6 +85,13 @@ function stopCapture() {
     if (sourceNode) {
         sourceNode.disconnect();
         sourceNode = null;
+    }
+    if (silentGain) {
+        silentGain.disconnect();
+        silentGain = null;
+    }
+    if (audioContext) {
+        audioContext.onstatechange = null;
     }
     if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
