@@ -57,35 +57,35 @@ function getAudioFeatures(dataArray) {
 
     // Onset detection: a sudden energy spike marks a new sound event (beat, note, word).
     const now = performance.now();
-    const delta = energy - _onset.prevEnergy;
+    const delta = energy - _state.prevEnergy;
     if (delta > 0.12 && energy > 0.15) {
-        _onset.times.push(now);
+        _state.onsetTimes.push(now);
     }
-    _onset.prevEnergy = energy;
+    _state.prevEnergy = energy;
 
     // Discard onsets older than 3 seconds
     const cutoff = now - 3000;
-    while (_onset.times.length > 0 && _onset.times[0] < cutoff) {
-        _onset.times.shift();
+    while (_state.onsetTimes.length > 0 && _state.onsetTimes[0] < cutoff) {
+        _state.onsetTimes.shift();
     }
 
     // Tempo: average inter-onset interval → BPM → normalized 0–1
     // (0 = no data or ≤40 BPM,  1 = ≥180 BPM)
     let tempo = 0;
-    if (_onset.times.length >= 2) {
+    if (_state.onsetTimes.length >= 2) {
         let totalInterval = 0;
-        for (let i = 1; i < _onset.times.length; i++) {
-            totalInterval += _onset.times[i] - _onset.times[i - 1];
+        for (let i = 1; i < _state.onsetTimes.length; i++) {
+            totalInterval += _state.onsetTimes[i] - _state.onsetTimes[i - 1];
         }
-        const avgInterval = totalInterval / (_onset.times.length - 1);
+        const avgInterval = totalInterval / (_state.onsetTimes.length - 1);
         const bpm = 60000 / avgInterval;
         tempo = Math.min(1, Math.max(0, (bpm - 40) / 140));
     }
 
-    return { energy, brightness, tempo };
+    return { energy, brightness, tempo, flux, spread };
 }
 
-// Maps energy × brightness × tempo to a mood/emotion label.
+// Maps all 5 features to a mood/emotion label.
 //
 // Base grid (energy × brightness):
 //               bass-heavy    mid-range     bright/treble
@@ -101,6 +101,7 @@ function getAudioFeatures(dataArray) {
 function getMood(energy, brightness, tempo, flux, spread) {
     if (energy < 0.12) return 'silent';
 
+    // Base mood from energy × brightness
     let mood;
     if (energy < 0.35) {
         if (brightness < 0.38) mood = 'melancholic';
@@ -116,6 +117,7 @@ function getMood(energy, brightness, tempo, flux, spread) {
         else mood = 'excited';
     }
 
+    // Tempo modifier
     if (tempo > 0.65) {
         const fastMap = {
             melancholic: 'restless',
@@ -228,8 +230,8 @@ function moodToColor(mood, energy) {
 // Convenience: runs the full audio → mood → color pipeline in one call.
 // Returns { mood, color } where color is an HSL string.
 function audioToColor(dataArray) {
-    const { energy, brightness, tempo } = getAudioFeatures(dataArray);
-    const mood = getMood(energy, brightness, tempo);
+    const { energy, brightness, tempo, flux, spread } = getAudioFeatures(dataArray);
+    const mood = getMood(energy, brightness, tempo, flux, spread);
     const color = moodToColor(mood, energy);
     return { mood, color };
 }
