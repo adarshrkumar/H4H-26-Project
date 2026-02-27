@@ -48,7 +48,7 @@ async function handleFileSelect(event) {
         // Ensure audio context is created or resumed.
         // The context must be created in response to a user gesture for security reasons.
         if (!audioContext || audioContext.state === 'closed') {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioContext = new (window.AudioContext || window['webkitAudioContext'])();
             console.log('Audio context created.');
         }
 

@@ -87,9 +87,7 @@ function stopCapture() {
     canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-/**
- * The main visualization loop. Gets frequency data and updates the canvas color.
- */
+// The main visualization loop. Gets frequency data and updates the canvas color.
 function drawVisualization() {
     if (!sourceNode || !analyser || !canvasCtx) {
         if (animationFrameId) {
