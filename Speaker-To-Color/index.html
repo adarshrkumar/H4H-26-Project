@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Audio to Color</title>
+    <link rel="stylesheet" href="./style.css"/>
+    <script type="module" src="./script.js"></script>
+</head>
+<body>
+    <h1>Audio to Color Visualizer</h1>
+    <label for="audioFile">Audio File</label>
+    <input type="file" id="audioFile" accept="audio/*"/>
+
+    <canvas id="colorCanvas"></canvas>
+
+    <div id="instructions">
+        <p>Select an audio file to start the visualization.</p>
+        <p>Lower frequencies are mapped to warm colors (red, orange), higher frequencies to cool colors (blue, purple), and overall volume affects brightness.</p>
+    </div>
+</body>
+</html>
