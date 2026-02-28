@@ -1,10 +1,13 @@
+---
+---
+
 <script>
     // ── Audio → Mood → Color pipeline ──
 
     const _state = {
         prevEnergy:   0,
-        prevSpectrum: null,
-        onsetTimes:   [],
+        prevSpectrum: null as Uint8Array | null,
+        onsetTimes:   [] as number[],
     };
 
     function getAudioFeatures(dataArray: Uint8Array, timeDomainArray?: Uint8Array) {
