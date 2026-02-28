@@ -1,0 +1,63 @@
+---
+/**
+ * Base Layout Component
+ * Demonstrates proper SCSS architecture:
+ * - No <style> tags in this file
+ * - All styles imported from external SCSS files
+ * - Global styles applied via import in the head
+ */
+
+import { siteConfig } from '@/lib/config';
+
+interface Props {
+    pageTitle?: string | string[];
+    description?: string;
+}
+
+const {
+    pageTitle,
+    description = siteConfig.stackDescription,
+} = Astro.props;
+
+const pageArray = Array.isArray(pageTitle) ? pageTitle : [pageTitle];
+
+const firstElement = pageArray?.[0];
+const shouldSkipFirst =
+    firstElement === '' ||
+    firstElement === siteConfig.stackName ||
+    firstElement?.toLowerCase() === 'index' ||
+    firstElement?.toLowerCase() === 'home';
+
+const newPageTitle = (pageArray && pageArray.length > 0 && firstElement)
+    ? shouldSkipFirst
+        ? pageArray.filter((a, i) => i !== 0)
+        : pageArray
+    : null;
+
+const title = newPageTitle ? `${newPageTitle.join(' | ')} | ${siteConfig.stackName}` : siteConfig.stackName;
+---
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content={description} />
+        <meta name="generator" content={Astro.generator} />
+
+        <!-- Favicons -->
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+        <!-- PWA manifest -->
+        <link rel="manifest" href="/manifest.webmanifest" />
+
+        <title>{title}</title>
+
+        <!-- Global styles imported from external SCSS file -->
+        <link rel="stylesheet" href="/src/styles/global.scss" />
+    </head>
+    <body>
+        <slot />
+    </body>
+</html>

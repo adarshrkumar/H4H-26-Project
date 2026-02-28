@@ -1,0 +1,61 @@
+{
+    "name": "h4h-project",
+    "version": "1.0.0",
+    "description": "ATSDC Stack - Astro application",
+    "type": "module",
+    "scripts": {
+        "dev": "astro dev",
+        "build": "astro check && astro build",
+        "preview": "astro preview",
+        "astro": "astro",
+        "ts": "node --experimental-strip-types",
+        "test:chrome": "npx playwright test --headed --browser=chromium",
+        "test:firefox": "npx playwright test --headed --browser=firefox",
+        "test:safari": "npx playwright test --headed --browser=webkit",
+        "test": "npm run test:chrome && npm run test:firefox && npm run test:safari",
+        "test:nopause:chrome": "npx playwright test tests/browser.test.nopause.ts --browser=chromium",
+        "test:nopause:firefox": "npx playwright test tests/browser.test.nopause.ts --browser=firefox",
+        "test:nopause:safari": "npx playwright test tests/browser.test.nopause.ts --browser=webkit",
+        "test:nopause": "npm run test:nopause:chrome && npm run test:nopause:firefox && npm run test:nopause:safari",
+        "test:nopause:chrome:headed": "npx playwright test tests/browser.test.nopause.ts --headed --browser=chromium",
+        "test:nopause:firefox:headed": "npx playwright test tests/browser.test.nopause.ts --headed --browser=firefox",
+        "test:nopause:safari:headed": "npx playwright test tests/browser.test.nopause.ts --headed --browser=webkit",
+        "check": "astro check && stylelint \"src/**/*.scss\" && astro build",
+        "stylelint:fix": "stylelint \"src/**/*.scss\" --fix"
+    },
+    "dependencies": {
+        "@astrojs/check": "^0.9.6",
+        "@astrojs/vercel": "^9.0.2",
+        "@clerk/astro": "^1.4.3",
+        "@clerk/clerk-react": "^5.17.3",
+        "@rocicorp/zero": "^0.2.0",
+        "@vercel/postgres": "^0.10.0",
+        "ai": "^5.0.0",
+        "astro": "^5.16.6",
+        "cheerio": "^1.0.0",
+        "drizzle-orm": "^0.36.4",
+        "exa-js": "^1.1.1",
+        "marked": "^14.1.3",
+        "nanoid": "^5.0.9",
+        "open-props": "^1.7.17",
+        "sass": "^1.82.0",
+        "turndown": "^7.2.0",
+        "typescript": "^5.7.2",
+        "zod": "^3.24.1"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.58.2",
+        "@types/node": "^22.10.5",
+        "@types/turndown": "^5.0.5",
+        "@vite-pwa/assets-generator": "^0.2.6",
+        "dotenv": "^16.6.1",
+        "drizzle-kit": "^0.29.1",
+        "stylelint": "^16.26.1",
+        "stylelint-config-standard-scss": "^14.0.0",
+        "vercel": "^39.2.0",
+        "vite-plugin-pwa": "^0.21.2"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
