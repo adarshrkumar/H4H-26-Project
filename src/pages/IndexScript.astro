@@ -1,0 +1,432 @@
+<script>
+    // ── Audio → Mood → Color pipeline ──
+
+    const _state = {
+        prevEnergy:   0,
+        prevSpectrum: null,
+        onsetTimes:   [],
+    };
+
+    function getAudioFeatures(dataArray: Uint8Array, timeDomainArray?: Uint8Array) {
+        let sum = 0;
+        let weightedLogSum = 0;
+        let totalAmplitude = 0;
+
+        for (let i = 1; i < dataArray.length; i++) {
+            sum += dataArray[i];
+            weightedLogSum += Math.log2(i) * dataArray[i];
+            totalAmplitude += dataArray[i];
+        }
+
+        const energy = (sum / dataArray.length) / 255;
+        const logCentroid = totalAmplitude > 0 ? weightedLogSum / totalAmplitude : 0;
+        const brightness = logCentroid / Math.log2(dataArray.length);
+
+        let spreadSum = 0;
+        for (let i = 1; i < dataArray.length; i++) {
+            const diff = Math.log2(i) - logCentroid;
+            spreadSum += diff * diff * dataArray[i];
+        }
+        const spread = Math.min(1, totalAmplitude > 0
+            ? Math.sqrt(spreadSum / totalAmplitude) / Math.log2(dataArray.length)
+            : 0);
+
+        let flux = 0;
+        if (_state.prevSpectrum && totalAmplitude > 0) {
+            let rawFlux = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                const diff = dataArray[i] - _state.prevSpectrum[i];
+                if (diff > 0) rawFlux += diff;
+            }
+            flux = rawFlux / totalAmplitude;
+        }
+        _state.prevSpectrum = new Uint8Array(dataArray);
+
+        const now = performance.now();
+        const delta = energy - _state.prevEnergy;
+        if (delta > 0.12 && energy > 0.15) {
+            _state.onsetTimes.push(now);
+        }
+        _state.prevEnergy = energy;
+
+        const cutoff = now - 3000;
+        while (_state.onsetTimes.length > 0 && _state.onsetTimes[0] < cutoff) {
+            _state.onsetTimes.shift();
+        }
+
+        let tempo = 0;
+        if (_state.onsetTimes.length >= 2) {
+            let totalInterval = 0;
+            for (let i = 1; i < _state.onsetTimes.length; i++) {
+                totalInterval += _state.onsetTimes[i] - _state.onsetTimes[i - 1];
+            }
+            const avgInterval = totalInterval / (_state.onsetTimes.length - 1);
+            const bpm = 60000 / avgInterval;
+            tempo = Math.min(1, Math.max(0, (bpm - 40) / 140));
+        }
+
+        let flatness = 0;
+        if (totalAmplitude > 0) {
+            let logSum = 0;
+            let nonZeroCount = 0;
+            for (let i = 1; i < dataArray.length; i++) {
+                if (dataArray[i] > 0) {
+                    logSum += Math.log(dataArray[i]);
+                    nonZeroCount++;
+                }
+            }
+            if (nonZeroCount > 0) {
+                const geometricMean = Math.exp(logSum / nonZeroCount);
+                const arithmeticMean = totalAmplitude / dataArray.length;
+                flatness = Math.min(1, arithmeticMean > 0 ? geometricMean / arithmeticMean : 0);
+            }
+        }
+
+        const bassEnd = Math.max(1, Math.floor(dataArray.length * 0.10));
+        let bassSum = 0;
+        for (let i = 0; i < bassEnd; i++) bassSum += dataArray[i];
+        const bassRatio = totalAmplitude > 0 ? Math.min(1, bassSum / totalAmplitude) : 0;
+
+        let zcr = 0;
+        if (timeDomainArray && timeDomainArray.length > 1) {
+            let crossings = 0;
+            for (let i = 1; i < timeDomainArray.length; i++) {
+                const prev = timeDomainArray[i - 1] - 128;
+                const curr = timeDomainArray[i] - 128;
+                if ((prev >= 0 && curr < 0) || (prev < 0 && curr >= 0)) crossings++;
+            }
+            zcr = crossings / (timeDomainArray.length - 1);
+        }
+
+        return { energy, brightness, tempo, flux, spread, flatness, bassRatio, zcr };
+    }
+
+    function getMood(energy: number, brightness: number, tempo: number, flux: number, spread: number, flatness: number, bassRatio: number, zcr: number): string {
+        if (energy < 0.05) return 'silent';
+
+        let mood: string;
+        if (energy < 0.35) {
+            mood = brightness < 0.38 ? 'melancholic' : brightness < 0.65 ? 'peaceful' : 'serene';
+        } else if (energy < 0.60) {
+            mood = brightness < 0.38 ? 'tense' : brightness < 0.65 ? 'focused' : 'uplifting';
+        } else {
+            mood = brightness < 0.38 ? 'angry' : brightness < 0.65 ? 'powerful' : 'excited';
+        }
+
+        if (energy > 0.80) {
+            const loudMap: Record<string, string> = { peaceful: 'uplifting', serene: 'excited', focused: 'powerful', uplifting: 'excited', melancholic: 'tense', tranquil: 'peaceful', meditative: 'serene', hopeful: 'uplifting', somber: 'melancholic', contemplative: 'focused', brooding: 'tense', heavy: 'powerful', giddy: 'excited' };
+            mood = loudMap[mood] ?? mood;
+        } else if (energy < 0.22) {
+            const quietMap: Record<string, string> = { angry: 'tense', powerful: 'focused', excited: 'uplifting', furious: 'angry', intense: 'powerful', frantic: 'tense', driven: 'focused', restless: 'melancholic', joyful: 'peaceful', playful: 'peaceful', euphoric: 'serene' };
+            mood = quietMap[mood] ?? mood;
+        }
+
+        if (tempo > 0.65) {
+            const fastMap: Record<string, string> = { melancholic: 'restless', peaceful: 'playful', serene: 'joyful', tense: 'frantic', focused: 'driven', uplifting: 'euphoric', angry: 'furious', powerful: 'intense', excited: 'euphoric' };
+            mood = fastMap[mood] ?? mood;
+        } else if (tempo > 0 && tempo < 0.25) {
+            const slowMap: Record<string, string> = { melancholic: 'somber', peaceful: 'tranquil', serene: 'meditative', tense: 'brooding', focused: 'contemplative', uplifting: 'hopeful', angry: 'smoldering', powerful: 'heavy', excited: 'giddy' };
+            mood = slowMap[mood] ?? mood;
+        }
+
+        if (flux < 0.05 && energy > 0.12) {
+            const droneMap: Record<string, string> = { melancholic: 'somber', peaceful: 'meditative', serene: 'meditative', tense: 'brooding', focused: 'contemplative', uplifting: 'hopeful', angry: 'smoldering', powerful: 'heavy', excited: 'giddy', restless: 'brooding', frantic: 'tense', driven: 'focused', euphoric: 'serene', furious: 'angry', intense: 'powerful' };
+            mood = droneMap[mood] ?? mood;
+        }
+
+        if (spread > 0.55 && energy > 0.40) {
+            const wideMap: Record<string, string> = { focused: 'powerful', tense: 'frantic', uplifting: 'excited', peaceful: 'uplifting', melancholic: 'tense', contemplative: 'focused', tranquil: 'peaceful' };
+            mood = wideMap[mood] ?? mood;
+        }
+
+        if (bassRatio > 0.30 && energy > 0.25) {
+            const bassMap: Record<string, string> = { uplifting: 'focused', excited: 'powerful', joyful: 'driven', playful: 'restless', hopeful: 'contemplative', giddy: 'restless', euphoric: 'intense', serene: 'peaceful', tranquil: 'somber' };
+            mood = bassMap[mood] ?? mood;
+        }
+
+        if (flatness > 0.70 && zcr > 0.15 && energy > 0.15) {
+            const noisyMap: Record<string, string> = { peaceful: 'restless', serene: 'uplifting', tranquil: 'peaceful', meditative: 'contemplative', somber: 'brooding', hopeful: 'focused', contemplative: 'tense' };
+            mood = noisyMap[mood] ?? mood;
+        }
+
+        return mood;
+    }
+
+    const MOOD_PALETTE: Record<string, { hue: number; saturation: number; baseLightness: number }> = {
+        silent:        { hue: 0,   saturation: 0,   baseLightness: 93 },
+        melancholic:   { hue: 248, saturation: 55,  baseLightness: 28 },
+        peaceful:      { hue: 205, saturation: 52,  baseLightness: 50 },
+        serene:        { hue: 175, saturation: 58,  baseLightness: 58 },
+        tense:         { hue: 22,  saturation: 78,  baseLightness: 36 },
+        focused:       { hue: 128, saturation: 45,  baseLightness: 38 },
+        uplifting:     { hue: 72,  saturation: 78,  baseLightness: 52 },
+        angry:         { hue: 348, saturation: 85,  baseLightness: 40 },
+        powerful:      { hue: 25,  saturation: 88,  baseLightness: 44 },
+        excited:       { hue: 48,  saturation: 95,  baseLightness: 56 },
+        restless:      { hue: 35,  saturation: 82,  baseLightness: 45 },
+        playful:       { hue: 80,  saturation: 85,  baseLightness: 58 },
+        joyful:        { hue: 55,  saturation: 90,  baseLightness: 62 },
+        frantic:       { hue: 10,  saturation: 92,  baseLightness: 42 },
+        driven:        { hue: 150, saturation: 65,  baseLightness: 42 },
+        euphoric:      { hue: 300, saturation: 90,  baseLightness: 58 },
+        furious:       { hue: 0,   saturation: 100, baseLightness: 30 },
+        intense:       { hue: 20,  saturation: 95,  baseLightness: 38 },
+        somber:        { hue: 230, saturation: 60,  baseLightness: 20 },
+        tranquil:      { hue: 200, saturation: 35,  baseLightness: 65 },
+        meditative:    { hue: 185, saturation: 40,  baseLightness: 45 },
+        brooding:      { hue: 270, saturation: 50,  baseLightness: 25 },
+        contemplative: { hue: 250, saturation: 40,  baseLightness: 40 },
+        hopeful:       { hue: 45,  saturation: 65,  baseLightness: 55 },
+        smoldering:    { hue: 10,  saturation: 70,  baseLightness: 25 },
+        heavy:         { hue: 30,  saturation: 60,  baseLightness: 28 },
+        giddy:         { hue: 320, saturation: 75,  baseLightness: 60 },
+    };
+
+    function moodToColor(mood: string, energy: number): string {
+        const base = MOOD_PALETTE[mood] ?? MOOD_PALETTE['focused'];
+        const lightness = Math.min(85, Math.max(10, base.baseLightness + (energy - 0.5) * 30));
+        return `hsl(${base.hue}, ${base.saturation}%, ${Math.round(lightness)}%)`;
+    }
+
+    const METRICS = [
+        { key: 'energy',     label: 'Energy' },
+        { key: 'brightness', label: 'Brightness' },
+        { key: 'tempo',      label: 'Tempo' },
+        { key: 'flux',       label: 'Flux' },
+        { key: 'spread',     label: 'Spread' },
+        { key: 'flatness',   label: 'Flatness' },
+        { key: 'bassRatio',  label: 'Bass Ratio' },
+        { key: 'zcr',        label: 'ZCR' },
+    ];
+
+    const metricsPanel = document.getElementById('metrics')!;
+    for (const { key, label } of METRICS) {
+        metricsPanel.insertAdjacentHTML('beforeend', `
+            <div class="metric-row">
+                <span class="metric-label">${label}</span>
+                <div class="metric-track">
+                    <div class="metric-bar" id="bar-${key}"></div>
+                </div>
+                <span class="metric-value" id="val-${key}">0.00</span>
+            </div>
+        `);
+    }
+
+    const canvas          = document.getElementById('colorCanvas') as HTMLCanvasElement;
+    const canvasCtx       = canvas.getContext('2d')!;
+    const moodDisplay     = document.getElementById('mood')!;
+    const audioFileInput  = document.getElementById('audioFile') as HTMLInputElement;
+    const speakerStartBtn = document.getElementById('speakerStartBtn') as HTMLButtonElement;
+    const speakerStopBtn  = document.getElementById('speakerStopBtn') as HTMLButtonElement;
+    const micStartBtn     = document.getElementById('micStartBtn') as HTMLButtonElement;
+    const micStopBtn      = document.getElementById('micStopBtn') as HTMLButtonElement;
+
+    canvasCtx.fillStyle = '#fff';
+    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+    let audioContext:     AudioContext | null = null;
+    let analyser:         AnalyserNode | null = null;
+    let dataArray:        Uint8Array | null = null;
+    let timeDomainArray:  Uint8Array | null = null;
+    let animationFrameId: number | null = null;
+    let sourceNode:       MediaStreamAudioSourceNode | null = null;
+    let bufferSource:     AudioBufferSourceNode | null = null;
+    let silentGain:       GainNode | null = null;
+    let mediaStream:      MediaStream | null = null;
+
+    async function ensureAudioContext() {
+        if (!audioContext || audioContext.state === 'closed') {
+            audioContext = new AudioContext();
+        }
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+    }
+
+    function setupAnalyser() {
+        analyser = audioContext!.createAnalyser();
+        analyser.fftSize = 2048;
+        dataArray       = new Uint8Array(analyser.frequencyBinCount);
+        timeDomainArray = new Uint8Array(analyser.fftSize);
+    }
+
+    function resetCanvas() {
+        canvasCtx.fillStyle = '#fff';
+        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function resetMetricBars() {
+        for (const { key } of METRICS) {
+            (document.getElementById(`bar-${key}`) as HTMLElement).style.width = '0%';
+            (document.getElementById(`val-${key}`) as HTMLElement).textContent  = '0.00';
+        }
+    }
+
+    function updateMetricBars(features: Record<string, number>) {
+        for (const { key } of METRICS) {
+            const v   = features[key] ?? 0;
+            const pct = Math.min(100, Math.round(v * 100));
+            (document.getElementById(`bar-${key}`) as HTMLElement).style.width = `${pct}%`;
+            (document.getElementById(`val-${key}`) as HTMLElement).textContent  = v.toFixed(2);
+        }
+    }
+
+    function stopCapture() {
+        if (bufferSource) {
+            try { bufferSource.stop(); } catch (_) {}
+            bufferSource.disconnect();
+            bufferSource = null;
+        }
+        if (sourceNode)  { sourceNode.disconnect();  sourceNode  = null; }
+        if (silentGain)  { silentGain.disconnect();  silentGain  = null; }
+        if (analyser)    { analyser.disconnect();    analyser    = null; }
+        if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+        if (audioContext) audioContext.onstatechange = null;
+        if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
+
+        dataArray       = null;
+        timeDomainArray = null;
+
+        speakerStartBtn.disabled = false;
+        speakerStopBtn.disabled  = true;
+        micStartBtn.disabled     = false;
+        micStopBtn.disabled      = true;
+
+        moodDisplay.textContent = '';
+        resetCanvas();
+        resetMetricBars();
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const mode = (tab as HTMLElement).dataset.mode;
+            if (tab.classList.contains('active')) return;
+            stopCapture();
+            document.querySelectorAll('.tab').forEach(t =>
+                t.classList.toggle('active', t === tab));
+            document.querySelectorAll('.ctrl-panel').forEach(p =>
+                p.classList.toggle('active', p.id === `ctrl-${mode}`));
+            audioFileInput.value = '';
+        });
+    });
+
+    audioFileInput.addEventListener('change', async (event) => {
+        const file = (event.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        stopCapture();
+        try {
+            await ensureAudioContext();
+            setupAnalyser();
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const audioBuffer = await audioContext!.decodeAudioData(e.target!.result as ArrayBuffer);
+                    bufferSource = audioContext!.createBufferSource();
+                    bufferSource.buffer = audioBuffer;
+                    bufferSource.connect(analyser!);
+                    analyser!.connect(audioContext!.destination);
+                    bufferSource.start(0);
+                    bufferSource.onended = () => {
+                        if (bufferSource) { bufferSource.disconnect(); bufferSource = null; }
+                    };
+                    if (!animationFrameId) drawVisualization();
+                } catch (err) {
+                    console.error('Audio decode error:', err);
+                    alert('Could not decode this audio file. Try MP3, WAV, or OGG.');
+                }
+            };
+            reader.onerror = () => alert('Could not read the selected file.');
+            reader.readAsArrayBuffer(file);
+        } catch (err) {
+            console.error('Audio setup error:', err);
+        }
+    });
+
+    speakerStartBtn.addEventListener('click', async () => {
+        stopCapture();
+        try {
+            mediaStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+            const audioTracks = mediaStream.getAudioTracks();
+            if (audioTracks.length === 0) {
+                alert('No audio track found. Make sure to check "Share audio" in the browser prompt.');
+                mediaStream.getTracks().forEach(t => t.stop());
+                mediaStream = null;
+                return;
+            }
+            mediaStream.getVideoTracks().forEach(t => t.stop());
+            await ensureAudioContext();
+            setupAnalyser();
+            sourceNode = audioContext!.createMediaStreamSource(mediaStream);
+            sourceNode.connect(analyser!);
+            audioTracks[0].onended = stopCapture;
+            speakerStartBtn.disabled = true;
+            speakerStopBtn.disabled  = false;
+            if (!animationFrameId) drawVisualization();
+        } catch (err: any) {
+            if (err.name !== 'NotAllowedError') {
+                console.error('Speaker capture error:', err);
+                alert('Could not start audio capture.');
+            }
+        }
+    });
+
+    speakerStopBtn.addEventListener('click', stopCapture);
+
+    micStartBtn.addEventListener('click', async () => {
+        stopCapture();
+        try {
+            mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            await ensureAudioContext();
+            setupAnalyser();
+            sourceNode = audioContext!.createMediaStreamSource(mediaStream);
+            silentGain = audioContext!.createGain();
+            silentGain.gain.value = 0;
+            sourceNode.connect(analyser!);
+            analyser!.connect(silentGain);
+            silentGain.connect(audioContext!.destination);
+            audioContext!.onstatechange = () => {
+                if (audioContext && audioContext.state === 'suspended') audioContext.resume();
+            };
+            mediaStream.getAudioTracks()[0].onended = stopCapture;
+            micStartBtn.disabled = true;
+            micStopBtn.disabled  = false;
+            if (!animationFrameId) drawVisualization();
+        } catch (err: any) {
+            if (err.name !== 'NotAllowedError') {
+                console.error('Microphone error:', err);
+                alert('Could not access the microphone.');
+            }
+        }
+    });
+
+    micStopBtn.addEventListener('click', stopCapture);
+
+    function drawVisualization() {
+        if (!analyser || (!bufferSource && !sourceNode)) {
+            if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
+            resetCanvas();
+            moodDisplay.textContent = '';
+            resetMetricBars();
+            return;
+        }
+
+        animationFrameId = requestAnimationFrame(drawVisualization);
+
+        analyser.getByteFrequencyData(dataArray!);
+        analyser.getByteTimeDomainData(timeDomainArray!);
+
+        const features = getAudioFeatures(dataArray!, timeDomainArray!);
+        const mood = getMood(
+            features.energy,    features.brightness, features.tempo,
+            features.flux,      features.spread,     features.flatness,
+            features.bassRatio, features.zcr
+        );
+        const color = moodToColor(mood, features.energy);
+
+        canvasCtx.fillStyle = color;
+        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+        moodDisplay.textContent = mood;
+        updateMetricBars(features);
+    }
+</script>
