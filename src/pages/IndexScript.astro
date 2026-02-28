@@ -430,20 +430,16 @@
         );
         const color = moodToColor(mood, features.energy);
 
-        colorHistory.push(color);
-        if (colorHistory.length > numHistoryItems) colorHistory.shift();
+        lchHistory.push({ l, c, h });
+        if (lchHistory.length > numHistoryItems) lchHistory.shift();
 
-        if (colorHistory.length === 1) {
-            canvasCtx.fillStyle = colorHistory[0];
-            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-        } else {
-            const gradient = canvasCtx.createLinearGradient(0, 0, canvas.width, 0);
-            colorHistory.forEach((c, i) => {
-                gradient.addColorStop(i / (colorHistory.length - 1), c);
-            });
-            canvasCtx.fillStyle = gradient;
-            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-        }
+        const n    = lchHistory.length;
+        const avgL = lchHistory.reduce((s, v) => s + v.l, 0) / n;
+        const avgC = lchHistory.reduce((s, v) => s + v.c, 0) / n;
+        const avgH = lchHistory.reduce((s, v) => s + v.h, 0) / n;
+
+        canvasCtx.fillStyle = `oklch(${Math.round(avgL)}% ${avgC.toFixed(3)} ${Math.round(avgH)})`;
+        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
         moodDisplay.textContent = mood;
         updateMetricBars(features);
