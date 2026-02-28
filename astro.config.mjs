@@ -1,7 +1,6 @@
 import { defineConfig } from 'astro/config';
 
 import vercel from '@astrojs/vercel';
-import clerk from '@clerk/astro';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
@@ -14,13 +13,7 @@ export default defineConfig({
             entrypoint: 'astro/assets/services/noop',
         },
     },
-    integrations: [
-
-        clerk({
-            afterSignInUrl: '/',
-            afterSignUpUrl: '/',
-        }),
-    ],
+    integrations: [],
     vite: {
         plugins: [
             VitePWA({
