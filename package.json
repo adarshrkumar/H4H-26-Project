@@ -21,7 +21,7 @@
         "test:nopause:firefox:headed": "npx playwright test tests/browser.test.nopause.ts --headed --browser=firefox",
         "test:nopause:safari:headed": "npx playwright test tests/browser.test.nopause.ts --headed --browser=webkit",
         "check": "astro check && stylelint \"src/**/*.scss\" && astro build",
-        "stylelint:fix": "stylelint \"src/**/*.scss\" --fix"
+        "stylelint:fix": "npx stylelint \"src/**/*.scss\" --fix"
     },
     "dependencies": {
         "@astrojs/check": "^0.9.6",
