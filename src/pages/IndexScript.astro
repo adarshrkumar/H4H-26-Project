@@ -2,13 +2,13 @@
 ---
 
 <script>
-    // ── Audio → Mood → Color pipeline ──
-
     const _state = {
         prevEnergy:   0,
         prevSpectrum: null as Uint8Array | null,
         onsetTimes:   [] as number[],
     };
+
+    const min_threashold = 0.00;
 
     function getAudioFeatures(dataArray: Uint8Array, timeDomainArray?: Uint8Array) {
         let sum = 0;
@@ -105,7 +105,7 @@
     }
 
     function getMood(energy: number, brightness: number, tempo: number, flux: number, spread: number, flatness: number, bassRatio: number, zcr: number): string {
-        if (energy < 0.05) return 'silent';
+        if (energy < min_threashold) return 'silent';
 
         let mood: string;
         if (energy < 0.35) {
