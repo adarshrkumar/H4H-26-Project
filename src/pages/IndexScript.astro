@@ -8,8 +8,8 @@
         onsetTimes:   [] as number[],
     };
 
-    const min_threashold = 0.01;
-    const num_history_items = 100;
+    const minThreashold = 0.01;
+    const numHistoryItems = 100;
 
     function getAudioFeatures(dataArray: Uint8Array, timeDomainArray?: Uint8Array) {
         let sum = 0;
@@ -106,7 +106,7 @@
     }
 
     function getMood(energy: number, brightness: number, tempo: number, flux: number, spread: number, flatness: number, bassRatio: number, zcr: number): string {
-        if (energy < min_threashold) return 'silent';
+        if (energy < minThreashold) return 'silent';
 
         let mood: string;
         if (energy < 0.35) {
@@ -431,7 +431,7 @@
         const color = moodToColor(mood, features.energy);
 
         colorHistory.push(color);
-        if (colorHistory.length > num_history_items) colorHistory.shift();
+        if (colorHistory.length > numHistoryItems) colorHistory.shift();
 
         if (colorHistory.length === 1) {
             canvasCtx.fillStyle = colorHistory[0];
