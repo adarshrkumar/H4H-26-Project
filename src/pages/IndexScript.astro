@@ -227,6 +227,8 @@
     canvasCtx.fillStyle = '#fff';
     canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
+    const colorHistory: string[] = [];
+
     let audioContext:     AudioContext | null = null;
     let analyser:         AnalyserNode | null = null;
     let dataArray:        Uint8Array<ArrayBuffer> | null = null;
@@ -296,6 +298,7 @@
         micStopBtn.disabled      = true;
 
         moodDisplay.textContent = '';
+        colorHistory.length = 0;
         resetCanvas();
         resetMetricBars();
     }
@@ -426,8 +429,20 @@
         );
         const color = moodToColor(mood, features.energy);
 
-        canvasCtx.fillStyle = color;
-        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+        colorHistory.push(color);
+        if (colorHistory.length > 15) colorHistory.shift();
+
+        if (colorHistory.length === 1) {
+            canvasCtx.fillStyle = colorHistory[0];
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+        } else {
+            const gradient = canvasCtx.createLinearGradient(0, 0, canvas.width, 0);
+            colorHistory.forEach((c, i) => {
+                gradient.addColorStop(i / (colorHistory.length - 1), c);
+            });
+            canvasCtx.fillStyle = gradient;
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         moodDisplay.textContent = mood;
         updateMetricBars(features);
