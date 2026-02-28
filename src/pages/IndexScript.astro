@@ -185,10 +185,37 @@
         giddy:         { hue: 320, saturation: 75,  baseLightness: 60 },
     };
 
-    function moodToColor(mood: string, energy: number): string {
+    // Returns target HSL components for a mood + energy level.
+    function moodToHSL(mood: string, energy: number): { h: number; s: number; l: number } {
         const base = MOOD_PALETTE[mood] ?? MOOD_PALETTE['focused'];
-        const lightness = Math.min(85, Math.max(10, base.baseLightness + (energy - 0.5) * 30));
-        return `hsl(${base.hue}, ${base.saturation}%, ${Math.round(lightness)}%)`;
+        const l = Math.min(85, Math.max(10, base.baseLightness + (energy - 0.5) * 30));
+        return { h: base.hue, s: base.saturation, l };
+    }
+
+    // Current smoothed color state (starts as the silent neutral grey).
+    const _color = { h: 0, s: 0, l: 93 };
+
+    // Lerp factor per frame (~60 fps): 0.06 ≈ ~300 ms settling time.
+    const COLOR_LERP = 0.06;
+
+    // Interpolates between two hue values via the shortest arc on the 0–360 circle.
+    function lerpHue(a: number, b: number, t: number): number {
+        let diff = ((b - a) % 360 + 360) % 360;
+        if (diff > 180) diff -= 360;
+        return (a + diff * t + 360) % 360;
+    }
+
+    // Steps _color one frame toward targetHSL and returns the CSS hsl() string.
+    function smoothColor(targetHSL: { h: number; s: number; l: number }): string {
+        _color.h = lerpHue(_color.h, targetHSL.h, COLOR_LERP);
+        _color.s += (targetHSL.s - _color.s) * COLOR_LERP;
+        _color.l += (targetHSL.l - _color.l) * COLOR_LERP;
+        return `hsl(${Math.round(_color.h)}, ${Math.round(_color.s)}%, ${Math.round(_color.l)}%)`;
+    }
+
+    // Resets the smooth color state to the silent neutral so restarts don't flash.
+    function resetColorState() {
+        _color.h = 0; _color.s = 0; _color.l = 93;
     }
 
     const METRICS = [
@@ -297,6 +324,7 @@
 
         moodDisplay.textContent = '';
         resetCanvas();
+        resetColorState();
         resetMetricBars();
     }
 
@@ -424,7 +452,7 @@
             features.flux,      features.spread,     features.flatness,
             features.bassRatio, features.zcr
         );
-        const color = moodToColor(mood, features.energy);
+        const color = smoothColor(moodToHSL(mood, features.energy));
 
         canvasCtx.fillStyle = color;
         canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
