@@ -229,8 +229,8 @@
 
     let audioContext:     AudioContext | null = null;
     let analyser:         AnalyserNode | null = null;
-    let dataArray:        Uint8Array | null = null;
-    let timeDomainArray:  Uint8Array | null = null;
+    let dataArray:        Uint8Array<ArrayBuffer> | null = null;
+    let timeDomainArray:  Uint8Array<ArrayBuffer> | null = null;
     let animationFrameId: number | null = null;
     let sourceNode:       MediaStreamAudioSourceNode | null = null;
     let bufferSource:     AudioBufferSourceNode | null = null;
