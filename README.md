@@ -7,7 +7,7 @@ This is the main Astro application for the ATSDC Stack.
 ### Prerequisites
 
 - Node.js >= 18.0.0
-- PostgreSQL database (Vercel Postgres, Neon, or local)
+- Convex account (database + sync)
 - API keys for Better Auth, OpenAI, and optionally Exa
 
 ### Installation
@@ -27,8 +27,8 @@ cp .env.example .env
 Create a `.env` file with the following variables:
 
 ```env
-# Database
-DATABASE_URL="postgresql://user:password@localhost:5432/dbname"
+# Convex (database + sync)
+PUBLIC_CONVEX_URL="https://your-deployment.convex.cloud"
 
 # Better Auth Authentication
 BETTER_AUTH_SECRET="your-secret-key"
@@ -41,18 +41,11 @@ OPENAI_API_KEY="sk-..."
 EXA_API_KEY="..."
 ```
 
-### Database Setup
+### Convex Setup
 
 ```bash
-# Push schema to database
-npm run db:push
-
-# Or generate migrations
-npm run db:generate
-npm run db:migrate
-
-# Open Drizzle Studio (database GUI)
-npm run db:studio
+# Start Convex dev server (run alongside astro dev)
+npm run convex
 ```
 
 ### Development
@@ -67,23 +60,19 @@ Visit `http://localhost:4321`
 ## 📝 Available Scripts
 
 - `npm run dev` - Start development server
+- `npm run convex` - Start Convex dev server
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
 - `npm run astro` - Run Astro CLI commands
-- `npm run db:generate` - Generate database migrations
-- `npm run db:migrate` - Run database migrations
-- `npm run db:push` - Push schema changes to database
-- `npm run db:studio` - Open Drizzle Studio
 
 ## 📁 Project Structure
 
 ```text
 src/
 ├── components/         # Reusable Astro components
-├── db/                 # Database schema and client
-│   ├── initialize.ts   # Database initialization
-│   ├── schema.ts       # Drizzle ORM schemas
-│   └── validations.ts  # Zod validation schemas
+├── db/                 # Database client and types
+│   ├── initialize.ts   # Convex client
+│   └── schema.ts       # Type exports from Convex
 ├── layouts/            # Page layouts
 │   └── Layout.astro
 ├── lib/                # Utility libraries
@@ -126,31 +115,21 @@ import '@/styles/components/button.scss';
 
 ## 🗄️ Database
 
-### Schema Definition
-
-Define your database schema in `src/db/schema.ts` using Drizzle ORM:
+Database and real-time sync are handled by Convex. Define your schema in `convex/schema.ts`:
 
 ```typescript
-export const posts = pgTable('posts', {
-    id: varchar('id', { length: 21 })
-        .primaryKey()
-        .$defaultFn(() => nanoid()),
-    title: varchar('title', { length: 255 }).notNull(),
-    content: text('content').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+import { defineSchema, defineTable } from 'convex/server';
+import { v } from 'convex/values';
+
+export default defineSchema({
+    posts: defineTable({
+        title: v.string(),
+        content: v.string(),
+    }),
 });
 ```
 
-### Validation
-
-Define Zod schemas in `src/db/validations.ts`:
-
-```typescript
-export const createPostSchema = z.object({
-    title: z.string().min(1).max(255),
-    content: z.string().min(1),
-});
-```
+Query and mutate data using Convex functions in the `convex/` directory. Types are auto-generated in `convex/_generated/`.
 
 ## 🔐 Authentication
 
@@ -204,7 +183,7 @@ vercel
 
 Make sure to set these environment variables in your Vercel project settings:
 
-- `DATABASE_URL`
+- `PUBLIC_CONVEX_URL`
 - `BETTER_AUTH_SECRET`
 - `BETTER_AUTH_URL`
 - `OPENAI_API_KEY`
@@ -213,7 +192,7 @@ Make sure to set these environment variables in your Vercel project settings:
 ## 📚 Documentation
 
 - [Astro Documentation](https://docs.astro.build)
-- [Drizzle ORM](https://orm.drizzle.team)
+- [Convex](https://docs.convex.dev)
 - [Better Auth](https://www.better-auth.com/docs)
 - [Vercel AI SDK](https://sdk.vercel.ai/docs)
 - [Zod](https://zod.dev)
