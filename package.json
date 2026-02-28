@@ -8,6 +8,7 @@
         "build": "astro check && astro build",
         "preview": "astro preview",
         "astro": "astro",
+        "install": "npm install --legacy-peer-deps",
         "ts": "node --experimental-strip-types",
         "test:chrome": "npx playwright test --headed --browser=chromium",
         "test:firefox": "npx playwright test --headed --browser=firefox",
