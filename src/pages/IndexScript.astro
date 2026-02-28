@@ -186,10 +186,10 @@
         giddy:         { hue: 320, chroma: 0.19, baseL: 60 },
     };
 
-    function moodToColor(mood: string, energy: number): string {
+    function moodToColor(mood: string, energy: number): { color: string; l: number; c: number; h: number } {
         const base = MOOD_PALETTE[mood] ?? MOOD_PALETTE['focused'];
-        const lightness = Math.min(85, Math.max(10, base.baseL + (energy - 0.5) * 30));
-        return `oklch(${Math.round(lightness)}% ${base.chroma} ${base.hue})`;
+        const l = Math.min(85, Math.max(10, base.baseL + (energy - 0.5) * 30));
+        return { color: `oklch(${Math.round(l)}% ${base.chroma} ${base.hue})`, l, c: base.chroma, h: base.hue };
     }
 
     const METRICS = [
@@ -228,7 +228,7 @@
     canvasCtx.fillStyle = '#fff';
     canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const colorHistory: string[] = [];
+    const lchHistory: { l: number; c: number; h: number }[] = [];
 
     let audioContext:     AudioContext | null = null;
     let analyser:         AnalyserNode | null = null;
@@ -299,7 +299,7 @@
         micStopBtn.disabled      = true;
 
         moodDisplay.textContent = '';
-        colorHistory.length = 0;
+        lchHistory.length = 0;
         resetCanvas();
         resetMetricBars();
     }
@@ -428,7 +428,7 @@
             features.flux,      features.spread,     features.flatness,
             features.bassRatio, features.zcr
         );
-        const color = moodToColor(mood, features.energy);
+        const { l, c, h } = moodToColor(mood, features.energy);
 
         lchHistory.push({ l, c, h });
         if (lchHistory.length > numHistoryItems) lchHistory.shift();
