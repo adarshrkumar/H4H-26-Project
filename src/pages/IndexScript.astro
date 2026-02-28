@@ -156,40 +156,40 @@
         return mood;
     }
 
-    const MOOD_PALETTE: Record<string, { hue: number; saturation: number; baseLightness: number }> = {
-        silent:        { hue: 0,   saturation: 0,   baseLightness: 93 },
-        melancholic:   { hue: 248, saturation: 55,  baseLightness: 28 },
-        peaceful:      { hue: 205, saturation: 52,  baseLightness: 50 },
-        serene:        { hue: 175, saturation: 58,  baseLightness: 58 },
-        tense:         { hue: 22,  saturation: 78,  baseLightness: 36 },
-        focused:       { hue: 128, saturation: 45,  baseLightness: 38 },
-        uplifting:     { hue: 72,  saturation: 78,  baseLightness: 52 },
-        angry:         { hue: 348, saturation: 85,  baseLightness: 40 },
-        powerful:      { hue: 25,  saturation: 88,  baseLightness: 44 },
-        excited:       { hue: 48,  saturation: 95,  baseLightness: 56 },
-        restless:      { hue: 35,  saturation: 82,  baseLightness: 45 },
-        playful:       { hue: 80,  saturation: 85,  baseLightness: 58 },
-        joyful:        { hue: 55,  saturation: 90,  baseLightness: 62 },
-        frantic:       { hue: 10,  saturation: 92,  baseLightness: 42 },
-        driven:        { hue: 150, saturation: 65,  baseLightness: 42 },
-        euphoric:      { hue: 300, saturation: 90,  baseLightness: 58 },
-        furious:       { hue: 0,   saturation: 100, baseLightness: 30 },
-        intense:       { hue: 20,  saturation: 95,  baseLightness: 38 },
-        somber:        { hue: 230, saturation: 60,  baseLightness: 20 },
-        tranquil:      { hue: 200, saturation: 35,  baseLightness: 65 },
-        meditative:    { hue: 185, saturation: 40,  baseLightness: 45 },
-        brooding:      { hue: 270, saturation: 50,  baseLightness: 25 },
-        contemplative: { hue: 250, saturation: 40,  baseLightness: 40 },
-        hopeful:       { hue: 45,  saturation: 65,  baseLightness: 55 },
-        smoldering:    { hue: 10,  saturation: 70,  baseLightness: 25 },
-        heavy:         { hue: 30,  saturation: 60,  baseLightness: 28 },
-        giddy:         { hue: 320, saturation: 75,  baseLightness: 60 },
+    const MOOD_PALETTE: Record<string, { hue: number; chroma: number; baseL: number }> = {
+        silent:        { hue: 0,   chroma: 0,    baseL: 93 },
+        melancholic:   { hue: 248, chroma: 0.12, baseL: 28 },
+        peaceful:      { hue: 205, chroma: 0.11, baseL: 50 },
+        serene:        { hue: 175, chroma: 0.13, baseL: 58 },
+        tense:         { hue: 22,  chroma: 0.18, baseL: 36 },
+        focused:       { hue: 128, chroma: 0.10, baseL: 38 },
+        uplifting:     { hue: 72,  chroma: 0.18, baseL: 52 },
+        angry:         { hue: 348, chroma: 0.21, baseL: 40 },
+        powerful:      { hue: 25,  chroma: 0.22, baseL: 44 },
+        excited:       { hue: 48,  chroma: 0.25, baseL: 56 },
+        restless:      { hue: 35,  chroma: 0.20, baseL: 45 },
+        playful:       { hue: 80,  chroma: 0.22, baseL: 58 },
+        joyful:        { hue: 55,  chroma: 0.24, baseL: 62 },
+        frantic:       { hue: 10,  chroma: 0.24, baseL: 42 },
+        driven:        { hue: 150, chroma: 0.15, baseL: 42 },
+        euphoric:      { hue: 300, chroma: 0.24, baseL: 58 },
+        furious:       { hue: 0,   chroma: 0.28, baseL: 30 },
+        intense:       { hue: 20,  chroma: 0.26, baseL: 38 },
+        somber:        { hue: 230, chroma: 0.13, baseL: 20 },
+        tranquil:      { hue: 200, chroma: 0.08, baseL: 65 },
+        meditative:    { hue: 185, chroma: 0.09, baseL: 45 },
+        brooding:      { hue: 270, chroma: 0.11, baseL: 25 },
+        contemplative: { hue: 250, chroma: 0.09, baseL: 40 },
+        hopeful:       { hue: 45,  chroma: 0.15, baseL: 55 },
+        smoldering:    { hue: 10,  chroma: 0.16, baseL: 25 },
+        heavy:         { hue: 30,  chroma: 0.14, baseL: 28 },
+        giddy:         { hue: 320, chroma: 0.19, baseL: 60 },
     };
 
     function moodToColor(mood: string, energy: number): string {
         const base = MOOD_PALETTE[mood] ?? MOOD_PALETTE['focused'];
-        const lightness = Math.min(85, Math.max(10, base.baseLightness + (energy - 0.5) * 30));
-        return `hsl(${base.hue}, ${base.saturation}%, ${Math.round(lightness)}%)`;
+        const lightness = Math.min(85, Math.max(10, base.baseL + (energy - 0.5) * 30));
+        return `oklch(${Math.round(lightness)}% ${base.chroma} ${base.hue})`;
     }
 
     const METRICS = [
